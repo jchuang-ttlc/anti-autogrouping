@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍽️ 聚餐自動分組分桌系統</title>
+  <!-- SEO & Meta Tags -->
+  <meta name="description" content="精美、智能的聚餐與宴會隨機分組分桌系統，支援跨裝置即時同步與 CSV 名單匯出。">
+  <meta name="author" content="Antigravity">
+  
+  <!-- Google Fonts: Outfit (Heading) & Inter (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons for premium visual cues -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Canvas Confetti for celebration effects -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Ambient background glow elements -->
+  <div class="glow-bg">
+    <div class="glow-sphere glow-sphere-1"></div>
+    <div class="glow-sphere glow-sphere-2"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon">✨</span>
+        <h1 class="logo-text">BanquetTable</h1>
+      </div>
+      <div id="connection-status" class="status-badge status-local">
+        <i data-lucide="shield-check"></i> <span>單機本機模式</span>
+      </div>
+    </header>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="view-wrapper">
+      
+      <!-- ================= 1. SETUP & ADMIN VIEW ================= -->
+      <section id="setup-view" class="app-view active">
+        <div class="card glass-card">
+          <div class="card-header">
+            <h2 class="section-title"><i data-lucide="sliders"></i> 活動分組設定</h2>
+            <p class="section-subtitle">快速設定您的聚餐分桌規則，開始進行隨機分組</p>
+          </div>
+          
+          <form id="setup-form" onsubmit="event.preventDefault();">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="event-name"><i data-lucide="tag"></i> 活動名稱</label>
+                <input type="text" id="event-name" placeholder="例如：2026 年尾牙春酒宴" required value="歡樂聚餐分桌活動">
+              </div>
+              
+              <div class="form-grid-2col">
+                <div class="form-group">
+                  <label for="table-count"><i data-lucide="grid"></i> 總桌數 (組數)</label>
+                  <input type="number" id="table-count" min="1" max="50" value="5" required>
+                </div>
+                <div class="form-group">
+                  <label for="table-capacity"><i data-lucide="users"></i> 每桌人數上限</label>
+                  <input type="number" id="table-capacity" min="1" max="100" value="8" required>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mode Selector Tab -->
+            <div class="mode-selector">
+              <span class="mode-label">資料儲存模式：</span>
+              <div class="tabs">
+                <button type="button" class="tab-btn active" id="btn-mode-local" onclick="app.setMode('local')">
+                  <i data-lucide="tablet"></i> 單機簽到桌
+                </button>
+                <button type="button" class="tab-btn" id="btn-mode-cloud" onclick="app.setMode('cloud')">
+                  <i data-lucide="cloud-lightning"></i> 雲端多機同步 (Supabase)
+                </button>
+              </div>
+            </div>
+
+            <!-- Supabase Config Drawer (shows when cloud mode is active) -->
+            <div id="supabase-config" class="config-drawer hidden">
+              <div class="drawer-inner">
+                <div class="alert alert-info">
+                  <i data-lucide="info"></i>
+                  <div>
+                    <strong>如何在手機間即時同步？</strong>
+                    請依照 <a href="README.md" target="_blank" class="text-link">README 指南</a> 免費建立 Supabase 專案，並將 API 金鑰填入下方。
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="sb-url">Supabase Project URL</label>
+                  <input type="url" id="sb-url" placeholder="https://xxxxxx.supabase.co">
+                </div>
+                <div class="form-group">
+                  <label for="sb-key">Supabase Anon Key</label>
+                  <input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                </div>
+              </div>
+            </div>
+
+            <div class="action-bar">
+              <button type="button" id="btn-save-settings" class="btn btn-primary" onclick="app.saveSettings()">
+                <i data-lucide="check-circle-2"></i> 儲存設定並初始化
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Live Dashboard (Shows after initialization) -->
+        <div id="admin-dashboard" class="dashboard-area hidden">
+          <!-- Invite Card -->
+          <div class="card glass-card invite-card">
+            <h3 class="card-title-sm"><i data-lucide="share-2"></i> 邀請參加人員登記</h3>
+            <p class="card-desc">複製下方專屬連結，發送給聚餐成員，讓大家各自在手機上填寫姓名分組：</p>
+            <div class="share-box">
+              <input type="text" id="share-link-input" readonly value="">
+              <button class="btn btn-secondary btn-icon" onclick="app.copyShareLink()" id="btn-copy">
+                <i data-lucide="copy"></i> <span>複製連結</span>
+              </button>
+            </div>
+            <div class="quick-nav-actions">
+              <button class="btn btn-accent btn-sm" onclick="app.goToJoinPage()">
+                <i data-lucide="external-link"></i> 前往登記頁面
+              </button>
+            </div>
+          </div>
+
+          <!-- Statistics Summary Row -->
+          <div class="stats-row">
+            <div class="stat-card glass-card">
+              <span class="stat-label">已登記人數</span>
+              <span class="stat-value" id="stat-registered">0</span>
+            </div>
+            <div class="stat-card glass-card">
+              <span class="stat-label">總容量</span>
+              <span class="stat-value" id="stat-capacity">0 / 0</span>
+            </div>
+            <div class="stat-card glass-card">
+              <span class="stat-label">賸餘空位</span>
+              <span class="stat-value text-accent" id="stat-remaining">0</span>
+            </div>
+          </div>
+
+          <!-- Group Visualizer -->
+          <div class="card glass-card">
+            <div class="card-header-flex">
+              <h3 class="card-title-sm"><i data-lucide="users"></i> 目前分桌狀態</h3>
+              <div class="admin-controls">
+                <button class="btn btn-secondary btn-sm" onclick="app.downloadCSV()">
+                  <i data-lucide="download"></i> 下載分組結果 (CSV)
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="app.resetEvent()">
+                  <i data-lucide="trash-2"></i> 清除所有資料
+                </button>
+              </div>
+            </div>
+            
+            <div id="tables-grid" class="tables-grid">
+              <!-- Dynamically populated tables -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. USER INPUT VIEW (JOIN) ================= -->
+      <section id="join-view" class="app-view">
+        <div class="card glass-card join-card">
+          <div class="welcome-badge">🍽️ 歡迎光臨</div>
+          <h2 id="join-event-title" class="event-title-display">讀取活動資訊中...</h2>
+          <p class="event-subtitle-display">請在下方輸入您的姓名，系統將為您自動分組排座！</p>
+          
+          <div class="join-illustration">
+            <i data-lucide="party-popper" class="ill-icon"></i>
+          </div>
+
+          <form id="join-form" onsubmit="app.registerParticipant(event)">
+            <div class="form-group">
+              <label for="participant-name">您的中文或英文姓名</label>
+              <input type="text" id="participant-name" placeholder="請輸入姓名（例如：王小明）" required autocomplete="off">
+            </div>
+            
+            <div id="join-error" class="error-message hidden">
+              <i data-lucide="alert-circle"></i> <span>姓名已存在，請使用其他姓名！</span>
+            </div>
+
+            <button type="submit" id="btn-submit-join" class="btn btn-primary btn-lg btn-block">
+              <i data-lucide="dice-5"></i> 開始自動隨機分桌
+            </button>
+          </form>
+          
+          <div class="join-footer">
+            <span class="secure-tip"><i data-lucide="lock"></i> 分組送出後即鎖定，不可任意更改</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. RESULT VIEW ================= -->
+      <section id="result-view" class="app-view">
+        <div class="card glass-card result-card">
+          <div class="success-icon-wrap">
+            <div class="success-icon-pulse"></div>
+            <i data-lucide="check" class="success-icon"></i>
+          </div>
+          
+          <h2 class="result-greeting">分桌登記成功！</h2>
+          <p class="result-name-label"><span id="res-user-name">王小明</span> 賓客，您的座位為：</p>
+          
+          <!-- Large Seat Display -->
+          <div class="seat-announcement">
+            <div class="table-tag">Table</div>
+            <div class="table-number-large" id="res-table-number">第 3 桌</div>
+            <div class="table-name-fancy" id="res-table-name">吉星高照桌</div>
+          </div>
+
+          <div class="result-details">
+            <h4 class="details-title"><i data-lucide="users-2"></i> 同桌的夥伴：</h4>
+            <div id="res-table-mates" class="table-mates-list">
+              <!-- Mates list -->
+            </div>
+          </div>
+
+          <div class="result-actions">
+            <button class="btn btn-secondary" onclick="app.viewAllTablesFromResults()" id="btn-view-all">
+              <i data-lucide="eye"></i> 查看完整分桌圖
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>© 2026 BanquetTable. Designed for premium event grouping.</p>
+    </footer>
+  </div>
+
+  <!-- Fullscreen Tables Modal (For Users to see other seats) -->
+  <div id="all-tables-modal" class="modal hidden">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h3><i data-lucide="map"></i> 完整分桌圖</h3>
+        <button class="btn-close" onclick="app.closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-tables-grid" class="tables-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
