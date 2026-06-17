@@ -418,16 +418,21 @@ class BanquetTableApp {
         return;
       }
 
-      // 3. 尋找尚有空位的桌次
-      const availableTables = [];
+      // 3. 尋找尚有空位的桌次，並取得每桌的人數
+      const tableCounts = [];
+      let minCount = Infinity;
+
       for (let t = 1; t <= this.state.tableCount; t++) {
         const count = this.state.participants.filter(p => p.table_number === t).length;
         if (count < this.state.tableCapacity) {
-          availableTables.push(t);
+          tableCounts.push({ tableNum: t, count: count });
+          if (count < minCount) {
+            minCount = count;
+          }
         }
       }
 
-      if (availableTables.length === 0) {
+      if (tableCounts.length === 0) {
         errorEl.querySelector('span').textContent = "所有桌次皆已額滿，無法再加入！請聯絡現場管理人員。";
         errorEl.classList.remove('hidden');
         submitBtn.disabled = false;
@@ -436,9 +441,10 @@ class BanquetTableApp {
         return;
       }
 
-      // 4. 隨機選定一桌
-      const randomIdx = Math.floor(Math.random() * availableTables.length);
-      const assignedTableNum = availableTables[randomIdx];
+      // 4. 僅從「人數最少」的可用桌次中隨機選定一桌，以達到平衡分配
+      const bestTables = tableCounts.filter(tc => tc.count === minCount).map(tc => tc.tableNum);
+      const randomIdx = Math.floor(Math.random() * bestTables.length);
+      const assignedTableNum = bestTables[randomIdx];
 
       // 5. 寫入資料庫或 LocalStorage
       const newParticipant = {
